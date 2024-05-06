@@ -21,18 +21,24 @@ I got lots of idea from [s-matyukevich](https://github.com/s-matyukevich/bash-cn
      ```
    - azure-cli:
      [azure-cli-installation](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=dnf)，
+
+   - make sure `/bin/jq`, `/bin/az`, `/bin/kubelet` are present in you system and able to execute 
    
 3. install this CNI
    - node-ip-alloc:
      ```bash
-     wget https://raw.githubusercontent.com/hydracz/simple-azure-cni-bash/main/node-ip-alloc -O /opt/cni/bin/node-ip-alloc
+     wget -O /opt/cni/bin/node-ip-alloc \
+        https://raw.githubusercontent.com/hydracz/simple-azure-cni-bash/main/node-ip-alloc
+     chmod +x /opt/cni/bin/node-ip-alloc
      ```
 
     - conflist file:  upload to /etc/cni/net.d
      ```
-      wget https://raw.githubusercontent.com/hydracz/simple-azure-cni-bash/main/09-cni.conflist -O /etc/cni/net.d/10-azure.conflist
+      wget -O /etc/cni/net.d/10-azure.conflist \
+         https://raw.githubusercontent.com/hydracz/simple-azure-cni-bash/main/09-cni.conflist 
      ```
-
+    - by Default kubeadm will save kubelet.conf in /etc/kubernetes/kubelet.conf, you need to modify the cni conflist in case your kubelet.conf is in different places
+      
      ```json
       {
         "cniVersion":"0.3.0",
@@ -54,7 +60,7 @@ I got lots of idea from [s-matyukevich](https://github.com/s-matyukevich/bash-cn
       export NODE_RG_NAME="rg-centos-k8s-southeastasia"
       ```
 
-4. to assign static ip to pod, you just need to annotate your pod with following:
+5. to assign static ip to pod, you just need to annotate your pod with following:
    ```yaml
    annotations:
      node-ip-alloc-ipv4-address: 10.0.0.0

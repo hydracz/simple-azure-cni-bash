@@ -38,15 +38,9 @@ exec 200>$lockfile
 trap "exec 200>&-; exit" INT TERM EXIT
 
 # 等待获取排他锁
-#flock -x 200 || {
-#    echo "Waiting for lock..."
-#    flock -x 200
-#}
-
-# 等待获取排他锁，最多等待30秒
-flock -x -w 30 200 || {
-    echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") Failed to acquire lock after waiting 30 seconds. CNI command: $CNI_COMMAND , WITH ARGS: $CNI_ARGS"
-    exit 1
+flock -x 200 || {
+    echo "Waiting for lock..."
+    flock -x 200
 }
 
 echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") Processing CNI command: $CNI_COMMAND , WITH ARGS: $CNI_ARGS"

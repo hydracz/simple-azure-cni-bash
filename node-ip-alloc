@@ -5,26 +5,26 @@ if [[ ${DEBUG} -gt 0 ]]; then set -x; fi
 exec 3>&1 # make stdout available as fd 3 for the result
 exec &>> /var/log/node-ip-alloc-plugin.log
 
-echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") GOT CNI command: $CNI_COMMAND , WITH ARGS: $CNI_ARGS"
+echo "PID: $$，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ，GOT CNI command: $CNI_COMMAND , WITH ARGS: $CNI_ARGS"
 
 stdin=`cat /dev/stdin`
 echo "stdin: $stdin"
 
 # check if jq installed
 if [ ! -x "/bin/jq" ]; then
-    echo "jq does not exist or is not executable"
+    echo "PID: $$ ，jq does not exist or is not executable"
     exit 1
 fi
 
 # check if az cli installed and working
 if [ ! -x "/bin/az" ]; then
-    echo "/bin/az does not exist or is not executable"
+    echo "PID: $$ ，/bin/az does not exist or is not executable"
     exit 1
 fi
 
 # check if kubectl installed and working
 if [ ! -x "/bin/kubectl" ]; then
-    echo "/bin/kubectl does not exist or is not executable"
+    echo "PID: $$ ，/bin/kubectl does not exist or is not executable"
     exit 1
 fi
 
@@ -39,11 +39,11 @@ trap "exec 200>&-; exit" INT TERM EXIT
 
 # 等待获取排他锁
 flock -x 200 || {
-    echo "Waiting for lock..."
+    echo "PID: $$ ，Waiting for lock..."
     flock -x 200
 }
 
-echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") Processing CNI command: $CNI_COMMAND , WITH ARGS: $CNI_ARGS"
+echo "PID: $$ ， $(date -u +"%Y-%m-%dT%H:%M:%SZ") Processing CNI command: $CNI_COMMAND , WITH ARGS: $CNI_ARGS"
 
 # 定义环境变量文件路径
 ENV_FILE="/etc/kubernetes/centos-k8s-cluster.env"
@@ -60,7 +60,7 @@ source $ENV_FILE
 # 定义一个函数来检查环境变量是否为空
 check_env() {
     if [ -z "${!1}" ]; then
-        echo "Environment variable $1 is empty"
+        echo "PID: $$ ，Environment variable $1 is empty"
         exit 1
     fi
 }
@@ -71,13 +71,13 @@ check_env "NODE_RG_NAME"
 check_env "NODE_SUBNET_CIDR"
 
 # 如果所有环境变量都不为空，打印成功消息
-echo "All environment variables are set"
+echo "PID: $$ ，All environment variables are set"
 
 # 定义一个函数来获取kubelet配置文件路径
 function get_kubeletconf {
   local kubeletconf=$(jq -r '.kubeletconf' < /dev/stdin)
   if [[ -z "$kubeletconf" ]]; then
-    echo "Error: kubeletconf is empty" >&2
+    echo "PID: $$ ，Error: kubeletconf is empty" >&2
     return 1
   fi
   echo $kubeletconf
@@ -101,7 +101,7 @@ function get_ip_config_name() {
 
     # 检查pod name、pod namespace和pod_infra_container_id是否为空
     if [ -z "$pod_name" ] || [ -z "$pod_namespace" ] || [ -z "$pod_infra_container_id" ]; then
-        echo "Pod name, namespace or infra container id is empty"
+        echo "PID: $$ ，Pod name, namespace or infra container id is empty"
         return 1
     fi
 
@@ -115,17 +115,17 @@ function get_ip_config_name() {
 function ensure_netns() {
     local netns_id=$1
     if [ -z "$netns_id" ]; then
-        echo "Error: netns ID is required"
+        echo "PID: $$ ，Error: netns ID is required"
         return 1
     fi
 
     if ! ip netns list | grep -q "^${netns_id}\$"; then
-        echo "Creating netns: $netns_id"
+        echo "PID: $$ ，Creating netns: $netns_id"
         ip netns add "$netns_id"
         if [ $? -eq 0 ]; then
-            echo "Created netns: $netns_id"
+            echo "PID: $$ ，Created netns: $netns_id"
         else
-            echo "Failed to create netns: $netns_id"
+            echo "PID: $$ ，Failed to create netns: $netns_id"
             return 1
         fi
     else
@@ -140,11 +140,11 @@ function manage-node-ip() {
 
     # 检查操作类型和ip-config name是否为空
     if [ -z "$operation" ] || [ -z "$ip_config_name" ]; then
-        echo "Operation or IP config name is empty"
+        echo "PID: $$ ，Operation or IP config name is empty"
         exit 1
     fi
 
-    echo "node-ip-alloc: $operation node ip config for $ip_config_name"
+    echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") , node-ip-alloc: $operation node ip config for $ip_config_name"
 
     # 根据操作类型执行相应的命令
     if [ "$operation" == "create" ]; then
@@ -156,31 +156,31 @@ function manage-node-ip() {
         fi
 
         if [ $? -ne 0 ]; then
-            echo "az create node ip failed"
+            echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ， az create node ip failed"
             exit 1
         fi
 
-        echo "az create node ip succeeded"
+        echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ， az create node ip succeeded"
 
         ip_address=$(echo $result | jq -r '.privateIpAddress')
 
         #check whether ip address format is correct
         if [[ ! $ip_address =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid ip address: $ip_address"
+            echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ，Invalid ip address: $ip_address"
             exit 1
         fi
         
-        echo "Assigned IP：$ip_address for $ip_config_name " 
+        echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ，Assigned IP：$ip_address for $ip_config_name " 
 
     elif [ "$operation" == "delete" ]; then
         /bin/az network nic ip-config delete -g $NODE_RG_NAME --nic-name $NODE_NIC_NAME --name $ip_config_name
         if [ $? -ne 0 ]; then
-            echo "az delete node ip failed"
+            echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ，az delete node ip failed"
             exit 1
         fi
-        echo "az delete node ip succeeded"
+        echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ，az delete node ip succeeded"
     else
-        echo "Invalid operation: $operation"
+        echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ，Invalid operation: $operation"
         exit 1
     fi
 }
@@ -188,7 +188,7 @@ function manage-node-ip() {
 # 更具ip config name获取pod的静态IP地址注解
 function get_pod_static_ip_annotation() {
     if [ $# -ne 2 ]; then
-        echo "Usage: get_pod_static_ip_annotation <kubeconfig_path> <ip_config_name>"
+        echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") , Usage: get_pod_static_ip_annotation <kubeconfig_path> <ip_config_name>"
         return 1
     fi
 
@@ -212,7 +212,7 @@ function get_pod_static_ip_annotation() {
             echo $ip_address
             return 0
         else
-            echo "Invalid IP address format: $ip_address"
+            echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") , Invalid IP address format: $ip_address"
             return 1
         fi
     fi
@@ -245,7 +245,7 @@ else
             az login -i
         else
             # 如果令牌没有过期，打印访问令牌
-            echo "Already logged in, access token: ${access_token:0:10}...${access_token: -10}"
+            echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ， Already logged in, access token: ${access_token:0:10}...${access_token: -10}"
         fi
     fi
 fi
@@ -261,18 +261,18 @@ kubeconffile=$( echo $stdin | get_kubeletconf )
 #get the right ip config name from $CNI_ARGS
 ip_config_name=$(get_ip_config_name "$CNI_ARGS")
 if [ $? -ne 0 ]; then
-    echo "Failed to get ip config name"
+    echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ， Failed to get ip config name"
     exit 1
 fi
 
 # 获取pod的静态IP地址注解
 ip_address=$(get_pod_static_ip_annotation $kubeconffile $ip_config_name)
 if [ $? -ne 0 ]; then
-    echo "Failed to get pod static ip annotation"
+    echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ， Failed to get pod static ip annotation"
     exit 1
 fi
 
-echo "got ip_address: $ip_address from pod annotation, if it is empty, will allocate a dynamic one from subnet"
+echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ， got ip_address: $ip_address from pod annotation, if it is empty, will allocate a dynamic one from subnet"
 
 # 检查ip_address是否有值
 if [ -n "$ip_address" ]; then
@@ -282,7 +282,7 @@ else
 fi
 
 if [ $? -ne 0 ]; then
-    echo "Failed to allocate node ip"
+    echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ， Failed to allocate node ip"
     exit 1
 fi
 
@@ -324,7 +324,7 @@ ip netns exec $CNI_NETNS_NAME ip route add 169.254.1.1/32 dev eth0
 ip netns exec $CNI_NETNS_NAME ip route add default via 169.254.1.1 dev eth0
 ip netns exec $CNI_NETNS_NAME arp -s 169.254.1.1 aa:aa:aa:aa:aa:aa
 
-echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") Finished CNI command: $CNI_COMMAND , WITH ARGS: $CNI_ARGS"
+echo "PID: $$ ， $(date -u +"%Y-%m-%dT%H:%M:%SZ") Finished CNI command: $CNI_COMMAND , WITH ARGS: $CNI_ARGS"
 
 # 返回CNI配置
 result=$(cat <<EOF
@@ -360,18 +360,18 @@ DEL)
 #get the right ip config name from $CNI_ARGS
 ip_config_name=$(get_ip_config_name "$CNI_ARGS")
 if [ $? -ne 0 ]; then
-    echo "Failed to get ip config name"
+    echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ，Failed to get ip config name"
     exit 1
 fi
 
 #let'd don't do any ifconfig delete here
 manage-node-ip delete $ip_config_name
 if [ $? -ne 0 ]; then
-    echo "Failed to delete ip config: $ip_config_name"
+    echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ，Failed to delete ip config: $ip_config_name"
     exit 1
 fi
 
-echo "$(date -u +"%Y-%m-%dT%H:%M:%SZ") Finished CNI command: $CNI_COMMAND , WITH ARGS: $CNI_ARGS"
+echo "PID: $$ ，$(date -u +"%Y-%m-%dT%H:%M:%SZ") ， Finished CNI command: $CNI_COMMAND , WITH ARGS: $CNI_ARGS"
 
 ;;
 
